@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Everything.Core;
 
@@ -22,7 +23,7 @@ public sealed class SearchResult
     public bool Truncated => TotalMatches > Hits.Count;
 }
 
-/// <summary>Bellek içi indekslerde paralel, büyük/küçük harf duyarsız arama.</summary>
+/// <summary>Bellek içi indekslerde paralel, büyük/küçük harf (varsayılan olarak aksan da) duyarsız arama.</summary>
 public static class SearchEngine
 {
     private const int ChunkSize = 16 * 1024;
@@ -93,11 +94,24 @@ public static class SearchEngine
         if (query.Kind == EntryKind.Folder && !isDir)
             return false;
 
+        if (query.MinModifiedTicks is not null || query.MaxModifiedTicks is not null)
+        {
+            // Değişiklik zamanı bilinmeyen kayıtlar tarih filtresine uymaz.
+            var ticks = index.GetModifiedTicks(id);
+            if (ticks <= 0)
+                return false;
+            if (query.MinModifiedTicks is { } from && ticks < from)
+                return false;
+            if (query.MaxModifiedTicks is { } to && ticks > to)
+                return false;
+        }
+
         var name = index.GetName(id);
+        var fold = query.IgnoreDiacritics;
 
         foreach (var term in query.NameTerms)
         {
-            if (name.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+            if (!Contains(name, term, fold))
                 return false;
         }
 
@@ -130,7 +144,7 @@ public static class SearchEngine
 
         foreach (var term in query.ExcludedTerms)
         {
-            if (name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0)
+            if (Contains(name, term, fold))
                 return false;
         }
 
@@ -139,11 +153,16 @@ public static class SearchEngine
             var path = index.GetFullPath(id);
             foreach (var term in query.PathTerms)
             {
-                if (path.IndexOf(term, StringComparison.OrdinalIgnoreCase) < 0)
+                if (!Contains(path, term, fold))
                     return false;
             }
         }
 
         return true;
     }
+
+    /// <summary><paramref name="fold"/> ise terim önceden katlanmıştır (bkz. <see cref="SearchQuery.IgnoreDiacritics"/>).</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool Contains(string text, string term, bool fold) =>
+        fold ? TextFolding.Contains(text, term) : text.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
 }
