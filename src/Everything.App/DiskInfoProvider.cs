@@ -5,8 +5,38 @@ using Everything.Core;
 namespace Everything.App;
 
 /// <summary>Bir sürücünün (birim + fiziksel disk) özellikleri.</summary>
-public sealed class DiskInfo
+public sealed class DiskInfo : System.ComponentModel.INotifyPropertyChanged
 {
+    private IReadOnlyList<HealthRow> _healthRows = Array.Empty<HealthRow>();
+    private string _healthStatus = "Sağlık bilgileri okunuyor…";
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>SMART satırları (Kalan ömür, Sıcaklık…).</summary>
+    public IReadOnlyList<HealthRow> HealthRows
+    {
+        get => _healthRows;
+        set
+        {
+            _healthRows = value;
+            PropertyChanged?.Invoke(this, new(nameof(HealthRows)));
+        }
+    }
+
+    /// <summary>Sağlık bilgisi yoksa açıklama; varsa boş.</summary>
+    public string HealthStatus
+    {
+        get => _healthStatus;
+        set
+        {
+            _healthStatus = value;
+            PropertyChanged?.Invoke(this, new(nameof(HealthStatus)));
+            PropertyChanged?.Invoke(this, new(nameof(HasHealthStatus)));
+        }
+    }
+
+    public bool HasHealthStatus => !string.IsNullOrEmpty(_healthStatus);
+
     public required string RootPath { get; init; }
     public required string Title { get; init; }
     public string VolumeLabel { get; init; } = string.Empty;
@@ -26,6 +56,9 @@ public sealed class DiskInfo
     public string VolumeSerial { get; init; } = string.Empty;
     public bool IsSystemDrive { get; init; }
 
+    /// <summary>Fiziksel disk numarası (\\.\PhysicalDriveN); bilinmiyorsa null.</summary>
+    public uint? DiskNumber { get; init; }
+
     public bool HasMediaType => MediaType != "Bilinmiyor";
     public bool HasBusType => BusType != "Bilinmiyor";
 
@@ -39,6 +72,8 @@ public sealed class DiskInfo
 
     public string PhysicalSizeText => PhysicalSize > 0 ? ByteSize.Format(PhysicalSize) : "—";
 }
+
+public sealed record HealthRow(string Label, string Value);
 
 /// <summary>Sürücü bilgilerini <see cref="DriveInfo"/> ve WMI (Storage API) üzerinden toplar.</summary>
 internal static class DiskInfoProvider
@@ -61,8 +96,12 @@ internal static class DiskInfoProvider
             {
                 var letter = char.ToUpperInvariant(drive.Name[0]);
                 PhysicalDisk? disk = null;
+                uint? diskNumber = null;
                 if (letterToDisk.TryGetValue(letter, out var number))
+                {
+                    diskNumber = number;
                     physical.TryGetValue(number, out disk);
+                }
 
                 result.Add(new DiskInfo
                 {
@@ -81,6 +120,7 @@ internal static class DiskInfoProvider
                     PhysicalSize = disk?.Size ?? 0,
                     VolumeSerial = volumeSerials.TryGetValue(letter, out var vs) ? vs : string.Empty,
                     IsSystemDrive = string.Equals(drive.Name, systemRoot, StringComparison.OrdinalIgnoreCase),
+                    DiskNumber = diskNumber,
                 });
             }
             catch (IOException)

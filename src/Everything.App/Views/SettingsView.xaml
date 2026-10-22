@@ -1,0 +1,134 @@
+<UserControl x:Class="Everything.App.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="4,14,4,8">
+        <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+            <!-- Güncellemeler -->
+            <TextBlock Text="Güncellemeler" Style="{StaticResource SectionTitle}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                <StackPanel>
+                    <DockPanel>
+                        <Button x:Name="CheckButton" DockPanel.Dock="Right" Click="OnCheckUpdates" Padding="12,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE895;" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Text="Güncellemeleri denetle" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel>
+                            <TextBlock x:Name="VersionText" FontWeight="SemiBold" />
+                            <TextBlock x:Name="UpdateStatus" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <StackPanel x:Name="UpdatePanel" Visibility="Collapsed" Margin="0,14,0,0">
+                        <TextBox x:Name="ReleaseNotes" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="160" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10" />
+                        <DockPanel>
+                            <Button x:Name="InstallButton" DockPanel.Dock="Left" Click="OnInstallUpdate" Padding="14,6" Style="{DynamicResource AccentButtonStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock FontFamily="{StaticResource IconFont}" Text="&#xE896;" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock x:Name="InstallButtonText" Text="İndir ve güncelle" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock DockPanel.Dock="Left" VerticalAlignment="Center" Margin="12,0,0,0" Style="{StaticResource Caption}">
+                                <Hyperlink Click="OnOpenReleasePage">Sürüm sayfası</Hyperlink>
+                            </TextBlock>
+                            <ProgressBar x:Name="DownloadProgress" Height="4" Margin="16,0,0,0" Maximum="1" Visibility="Collapsed" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </StackPanel>
+
+                    <Border Height="1" Background="{DynamicResource DividerStrokeColorDefaultBrush}" Margin="0,14" />
+                    <CheckBox Margin="0,0,0,10" x:Name="AutoUpdateCheck" Content="Açılışta güncellemeleri otomatik denetle (günde bir kez)" Click="OnSettingChanged" />
+                    <CheckBox x:Name="PrereleaseCheck" Content="Ön sürümleri de dahil et" Click="OnSettingChanged" Margin="0" />
+                </StackPanel>
+            </Border>
+
+            <!-- Genel -->
+            <TextBlock Text="Genel" Style="{StaticResource SectionTitle}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                <StackPanel>
+                    <CheckBox Margin="0,0,0,10" x:Name="StartupCheck" Content="Windows açılınca başlat (tepside)" Click="OnStartupChanged" />
+                    <TextBlock x:Name="StartupNote" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="26,-6,0,12" />
+                    <CheckBox Margin="0,0,0,10" x:Name="CloseToTrayCheck" Content="Pencere kapatılınca tepside çalışmaya devam et" Click="OnSettingChanged" />
+
+                    <TextBlock Text="Hızlı arama kısayolu" Margin="0,6,0,6" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox x:Name="HotkeyBox" Width="200" IsReadOnly="True" PreviewKeyDown="OnHotkeyKeyDown"
+                                 ToolTip="Kutuya tıklayıp istediğiniz tuş birleşimine basın" />
+                        <Button Content="Kapat" Margin="8,0,0,0" Padding="10,5" Click="OnClearHotkey" />
+                    </StackPanel>
+                    <TextBlock x:Name="HotkeyStatus" Style="{StaticResource Caption}" Margin="0,6,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Arama -->
+            <TextBlock Text="Arama" Style="{StaticResource SectionTitle}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                <StackPanel>
+                    <CheckBox Margin="0,0,0,10" x:Name="DiacriticsCheck" Content="Türkçe karakterleri ve aksanları yok say (&quot;sarki&quot; → &quot;Şarkı&quot;)" Click="OnSettingChanged" />
+                    <CheckBox x:Name="PreviewCheck" Content="Arama sonuçlarının yanında önizleme göster" Click="OnSettingChanged" Margin="0" />
+                </StackPanel>
+            </Border>
+
+            <!-- İndeks -->
+            <TextBlock Text="İndeks" Style="{StaticResource SectionTitle}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,20">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <Button x:Name="ElevateButton" DockPanel.Dock="Right" Click="OnRestartElevated" Padding="12,6" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7EF;" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Text="Yönetici olarak yeniden başlat" />
+                            </StackPanel>
+                        </Button>
+                        <StackPanel>
+                            <TextBlock x:Name="ModeTitle" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ModeText" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,12,0" />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <DockPanel Margin="0,0,0,12">
+                        <ComboBox x:Name="RefreshCombo" DockPanel.Dock="Right" Width="140" SelectionChanged="OnRefreshChanged">
+                            <ComboBoxItem Content="Asla" Tag="0" />
+                            <ComboBoxItem Content="1 gün" Tag="1" />
+                            <ComboBoxItem Content="3 gün" Tag="3" />
+                            <ComboBoxItem Content="7 gün" Tag="7" />
+                            <ComboBoxItem Content="30 gün" Tag="30" />
+                        </ComboBox>
+                        <StackPanel>
+                            <TextBlock Text="Arka planda tazele" />
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,2,12,0"
+                                       Text="Yönetici olmadan çalışırken, kayıtlı indeks bu süreden eskiyse açılışta arka planda yeniden taranır. Açıkken değişiklikler zaten anında işlenir." />
+                        </StackPanel>
+                    </DockPanel>
+
+                    <WrapPanel>
+                        <Button Click="OnRescanAll" Padding="12,6" Margin="0,0,8,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE72C;" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Text="Tüm diskleri şimdi yeniden tara" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="OnOpenDataFolder" Padding="12,6">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE838;" FontSize="12" Margin="0,0,6,0" />
+                                <TextBlock Text="Veri klasörünü aç" />
+                            </StackPanel>
+                        </Button>
+                    </WrapPanel>
+                    <TextBlock x:Name="DataFolderText" Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <!-- Hakkında -->
+            <TextBlock Text="Hakkında" Style="{StaticResource SectionTitle}" />
+            <Border Style="{StaticResource Card}" Margin="0,0,0,8">
+                <StackPanel>
+                    <TextBlock Text="Everything Arama — anında dosya arama ve disk alanı analizi" />
+                    <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0">
+                        <Hyperlink Click="OnOpenRepository">github.com/Mustafa-Kayra/everything</Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

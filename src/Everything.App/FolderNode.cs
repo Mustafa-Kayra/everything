@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Windows.Media;
+using Everything.App.Services;
 using Everything.Core;
 
 namespace Everything.App;
@@ -51,7 +53,7 @@ public sealed class FolderNode : INotifyPropertyChanged
     public int FileCount { get; }
     public double Percent { get; }
 
-    public string Icon => IsAggregate ? Glyphs.More : IsDirectory ? Glyphs.Folder : Glyphs.Document;
+    public ImageSource? Icon => IsAggregate ? null : FileIcons.Get(GetFullPath() ?? Name, IsDirectory);
     public string SizeText => ByteSize.Format(Size);
     public string PercentText => Percent >= 99.95 ? "100 %" : Percent.ToString("0.0") + " %";
     public string FileCountText => IsDirectory ? FileCount.ToString("N0") + " dosya" : string.Empty;

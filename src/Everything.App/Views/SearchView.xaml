@@ -1,0 +1,120 @@
+<UserControl x:Class="Everything.App.Views.SearchView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="4,14,4,8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <TextBox x:Name="SearchBox" FontSize="14" Padding="34,7,10,7" VerticalContentAlignment="Center"
+                     TextChanged="OnSearchTextChanged" PreviewKeyDown="OnSearchKeyDown" />
+            <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" Margin="12,0,0,0" HorizontalAlignment="Left" IsHitTestVisible="False" />
+            <TextBlock x:Name="SearchPlaceholder" Text="Dosya veya klasör ara…   örn. rapor ext:pdf · *.mp4 size:>1gb · dm:buhafta"
+                       IsHitTestVisible="False" Margin="35,0,0,0" VerticalAlignment="Center" Style="{StaticResource Secondary}" />
+        </Grid>
+
+        <DockPanel Grid.Row="1" Margin="2,8,2,8">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <CheckBox x:Name="PreviewToggle" Content="Önizleme" Margin="0,0,16,0" Click="OnPreviewToggled" VerticalAlignment="Center" />
+                <TextBlock Style="{StaticResource Caption}" VerticalAlignment="Center">
+                    <Hyperlink Click="OnShowSearchHelp">Arama ipuçları</Hyperlink>
+                </TextBlock>
+            </StackPanel>
+            <TextBlock x:Name="SearchInfo" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+        </DockPanel>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300" />
+                <ColumnDefinition x:Name="SplitterColumn" Width="12" />
+                <ColumnDefinition x:Name="PreviewColumn" Width="300" MinWidth="220" />
+            </Grid.ColumnDefinitions>
+
+            <ListView x:Name="ResultsList"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Item"
+                      SelectionMode="Extended"
+                      MouseDoubleClick="OnResultDoubleClick"
+                      KeyDown="OnResultKeyDown"
+                      SelectionChanged="OnResultSelectionChanged"
+                      GridViewColumnHeader.Click="OnResultHeaderClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Ad" Width="260">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,10,0" RenderOptions.BitmapScalingMode="HighQuality" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Konum" Width="330">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Folder}" Style="{StaticResource Secondary}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Boyut" Width="85">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding SizeText}" Style="{StaticResource RightCell}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Değiştirilme" Width="130">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ModifiedText}" Style="{StaticResource Secondary}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+
+            <GridSplitter x:Name="PreviewSplitter" Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <!-- Önizleme paneli -->
+            <Border x:Name="PreviewPanel" Grid.Column="2" Style="{StaticResource Card}" Padding="14">
+                <Grid>
+                    <TextBlock x:Name="PreviewEmpty" Text="Önizlemek için bir dosya seçin" Style="{StaticResource Caption}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <DockPanel x:Name="PreviewContent" Visibility="Collapsed">
+                        <StackPanel DockPanel.Dock="Top">
+                            <Grid Height="180" Margin="0,0,0,12">
+                                <Image x:Name="PreviewImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                                <Image x:Name="PreviewIcon" Width="48" Height="48" Visibility="Collapsed" />
+                            </Grid>
+                            <TextBlock x:Name="PreviewName" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="PreviewType" Style="{StaticResource Caption}" Margin="0,2,0,10" />
+                            <Grid x:Name="PreviewDetails">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Boyut" Style="{StaticResource Secondary}" Margin="0,0,0,4" />
+                                <TextBlock x:Name="PreviewSize" Grid.Column="1" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Text="Değiştirilme" Style="{StaticResource Secondary}" Margin="0,0,0,4" />
+                                <TextBlock x:Name="PreviewModified" Grid.Row="1" Grid.Column="1" />
+                                <TextBlock Grid.Row="2" Text="Konum" Style="{StaticResource Secondary}" />
+                                <TextBlock x:Name="PreviewFolder" Grid.Row="2" Grid.Column="1" TextWrapping="Wrap" />
+                            </Grid>
+                        </StackPanel>
+                        <TextBox x:Name="PreviewText" Margin="0,12,0,0" IsReadOnly="True" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                 TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" Visibility="Collapsed" />
+                    </DockPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>
