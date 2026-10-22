@@ -76,6 +76,9 @@ public class FileIndexTests
         var index = FileScanner.Scan(t.Root);
         index.Move(index.FindPath(t.PathOf("Videolar/Arşiv")), index.FindPath(t.PathOf("Belgeler")), "Arşiv");
         index.Remove(index.FindPath(t.PathOf("kok.bin")));
+        index.SetFileReference(index.FindPath(t.PathOf("Videolar/tatil.mp4")), 0x0001_0000_0000_002A);
+        index.UsnJournalId = 77;
+        index.NextUsn = 12345;
 
         var file = Path.Combine(t.Root, "..", Path.GetFileName(t.Root) + ".evix");
         try
@@ -89,6 +92,10 @@ public class FileIndexTests
             Assert.NotEqual(FileIndex.None, mkv);
             Assert.Equal(30_000, loaded.GetSize(mkv));
             Assert.Equal(FileIndex.None, loaded.FindPath(t.PathOf("kok.bin")));
+            Assert.Equal(0x0001_0000_0000_002A, loaded.GetFileReference(loaded.FindPath(t.PathOf("Videolar/tatil.mp4"))));
+            Assert.Equal(77UL, loaded.UsnJournalId);
+            Assert.Equal(12345, loaded.NextUsn);
+            Assert.Equal(loaded.FindPath(t.PathOf("Videolar/tatil.mp4")), loaded.BuildFileReferenceMap()[0x0001_0000_0000_002A]);
         }
         finally
         {
