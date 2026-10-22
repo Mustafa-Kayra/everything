@@ -25,7 +25,7 @@ public sealed class ResultItem
     public long Size { get; }
     public DateTime? Modified { get; }
 
-    public string Icon => IsDirectory ? "📁" : "📄";
+    public string Icon => IsDirectory ? Glyphs.Folder : Glyphs.Document;
 
     public string SizeText => ByteSize.Format(Size);
 

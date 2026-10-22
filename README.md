@@ -47,8 +47,8 @@ Sağ tık menüsünde *Aç*, *Dosya konumunu aç*, *Tam yolu kopyala* ve *Geri D
 ## Geliştirme
 
 ```
-src/Everything.Core     platformdan bağımsız indeks, tarayıcı, arama motoru ve alan analizi (net8.0)
-src/Everything.App      WPF arayüzü ve WMI disk bilgileri (net8.0-windows)
+src/Everything.Core     platformdan bağımsız indeks, tarayıcı, arama motoru ve alan analizi (net10.0)
+src/Everything.App      WPF arayüzü (Windows 11 Fluent teması, açık/koyu mod) ve WMI disk bilgileri (net10.0-windows)
 tests/Everything.Core.Tests
 ```
 

@@ -51,9 +51,9 @@ public sealed class FolderNode : INotifyPropertyChanged
     public int FileCount { get; }
     public double Percent { get; }
 
-    public string Icon => IsAggregate ? "⋯" : IsDirectory ? "📁" : "📄";
+    public string Icon => IsAggregate ? Glyphs.More : IsDirectory ? Glyphs.Folder : Glyphs.Document;
     public string SizeText => ByteSize.Format(Size);
-    public string PercentText => Percent.ToString("0.0") + " %";
+    public string PercentText => Percent >= 99.95 ? "100 %" : Percent.ToString("0.0") + " %";
     public string FileCountText => IsDirectory ? FileCount.ToString("N0") + " dosya" : string.Empty;
 
     public ObservableCollection<FolderNode> Children { get; } = new();

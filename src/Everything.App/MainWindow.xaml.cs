@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Everything.Core;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyContainerStyles();
 
         var cacheDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Everything", "cache");
         _manager = new IndexManager(cacheDir);
@@ -45,6 +47,30 @@ public partial class MainWindow : Window
 
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _statusTimer.Tick += (_, _) => OnStatusTick();
+    }
+
+    /// <summary>
+    /// Fluent temasının öğe stillerini koruyarak bağlama/hizalama ayarlarını ekler
+    /// (XAML'de BasedOn ile tema stiline statik olarak bağlanmak güvenilir değil).
+    /// </summary>
+    private void ApplyContainerStyles()
+    {
+        var treeItem = new Style(typeof(TreeViewItem), TryFindResource(typeof(TreeViewItem)) as Style);
+        treeItem.Setters.Add(new Setter(TreeViewItem.IsExpandedProperty, new Binding(nameof(FolderNode.IsExpanded)) { Mode = BindingMode.TwoWay }));
+        treeItem.Setters.Add(new Setter(TreeViewItem.IsSelectedProperty, new Binding(nameof(FolderNode.IsSelected)) { Mode = BindingMode.TwoWay }));
+        SpaceTree.ItemContainerStyle = treeItem;
+
+        // Sağa hizalı "Boyut" sütunu için hücre içeriği tüm genişliği kaplamalı.
+        var baseStyle = TryFindResource(GridView.GridViewItemContainerStyleKey) as Style
+                        ?? TryFindResource(typeof(ListViewItem)) as Style;
+        var listItem = new Style(typeof(ListViewItem), baseStyle);
+        listItem.Setters.Add(new Setter(HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        // Fluent varsayılanı dosya listesi için fazla ferah; satırları sıkılaştır.
+        listItem.Setters.Add(new Setter(MinHeightProperty, 30.0));
+        listItem.Setters.Add(new Setter(HeightProperty, 30.0));
+        listItem.Setters.Add(new Setter(PaddingProperty, new Thickness(8, 0, 8, 0)));
+        foreach (var list in new[] { ResultsList, CategoryList, TypeList, LargestList })
+            list.ItemContainerStyle = listItem;
     }
 
     // ---------------------------------------------------------------- yaşam döngüsü
@@ -79,14 +105,14 @@ public partial class MainWindow : Window
     {
         var parts = _manager.Volumes.Select(v => v.State switch
         {
-            IndexState.Ready => $"{v.RootPath.TrimEnd('\\')} ✓ {v.Index?.Count ?? 0:N0}",
+            IndexState.Ready => $"{v.RootPath.TrimEnd('\\')}  {v.Index?.Count ?? 0:N0}",
             IndexState.Scanning when v.Index is not null => $"{v.RootPath.TrimEnd('\\')} güncelleniyor… {v.ItemsScanned:N0}",
             IndexState.Scanning => $"{v.RootPath.TrimEnd('\\')} taranıyor… {v.ItemsScanned:N0}",
             IndexState.Loading => $"{v.RootPath.TrimEnd('\\')} yükleniyor…",
             IndexState.Failed => $"{v.RootPath.TrimEnd('\\')} hata: {v.Error}",
             _ => v.RootPath,
         });
-        StatusText.Text = $"{_manager.TotalItems:N0} öğe indekslendi    |    " + string.Join("    ", parts);
+        StatusText.Text = $"{_manager.TotalItems:N0} öğe indekslendi     ·     " + string.Join("     ", parts);
         BusyBar.Visibility = _manager.IsBusy ? Visibility.Visible : Visibility.Collapsed;
 
         if (_indexChanged && (DateTime.UtcNow - _lastSearch).TotalSeconds >= 2)
@@ -432,9 +458,11 @@ public partial class MainWindow : Window
         var disk = DriveInfo.GetDrives().FirstOrDefault(d => string.Equals(d.RootDirectory.FullName, root, StringComparison.OrdinalIgnoreCase));
         var used = disk is { IsReady: true } ? disk.TotalSize - disk.TotalFreeSpace : 0;
         SpaceInfo.Text = used > 0
-            ? $"Dosyalar: {ByteSize.Format(rootNode.Size)} • Diskte kullanılan: {ByteSize.Format(used)} • " +
-              $"Fark ({ByteSize.Format(Math.Max(0, used - rootNode.Size))}) erişilemeyen sistem klasörleri, gölge kopyalar vb."
-            : $"Dosyalar: {ByteSize.Format(rootNode.Size)}";
+            ? $"Dosyalar {ByteSize.Format(rootNode.Size)}  ·  Diskte kullanılan {ByteSize.Format(used)}"
+            : $"Dosyalar {ByteSize.Format(rootNode.Size)}";
+        SpaceInfo.ToolTip = used > rootNode.Size
+            ? $"Aradaki {ByteSize.Format(used - rootNode.Size)}; yönetici izni olmadan erişilemeyen klasörler, gölge kopyalar ve sistem dosyalarıdır."
+            : null;
         AnalyzeSelection(rootNode);
     }
 

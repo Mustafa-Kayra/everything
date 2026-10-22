@@ -26,20 +26,18 @@ public sealed class DiskInfo
     public string VolumeSerial { get; init; } = string.Empty;
     public bool IsSystemDrive { get; init; }
 
-    public string UsageText =>
-        $"{ByteSize.Format(UsedSpace)} kullanılıyor  •  {ByteSize.Format(FreeSpace)} boş  •  Toplam {ByteSize.Format(TotalSize)}";
+    public bool HasMediaType => MediaType != "Bilinmiyor";
+    public bool HasBusType => BusType != "Bilinmiyor";
+
+    /// <summary>Başlık altındaki satır: disk modeli, bilinmiyorsa sürücü türü.</summary>
+    public string Subtitle => Model != "Bilinmiyor" ? Model : DriveType;
+
+    public string SerialText => string.IsNullOrWhiteSpace(SerialNumber) ? "—" : SerialNumber;
+    public string VolumeSerialText => string.IsNullOrWhiteSpace(VolumeSerial) ? "—" : VolumeSerial;
 
     public string UsedPercentText => UsedPercent.ToString("0.#") + " % dolu";
 
     public string PhysicalSizeText => PhysicalSize > 0 ? ByteSize.Format(PhysicalSize) : "—";
-
-    public string HealthIcon => Health switch
-    {
-        "Sağlıklı" => "✅",
-        "Uyarı" => "⚠️",
-        "Sağlıksız" => "❌",
-        _ => "❔",
-    };
 }
 
 /// <summary>Sürücü bilgilerini <see cref="DriveInfo"/> ve WMI (Storage API) üzerinden toplar.</summary>
