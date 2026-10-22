@@ -1,3 +1,5 @@
+using Everything.Core.Ntfs;
+
 namespace Everything.Core.Tests;
 
 public class VolumeIndexerTests
@@ -59,10 +61,10 @@ public class VolumeIndexerTests
     }
 
     [Fact]
-    public async Task Start_LoadsCacheAndRescans()
+    public async Task Start_UsesFreshCacheWithoutRescanning()
     {
         using var t = new TempTree();
-        var cacheDir = Path.Combine(Path.GetTempPath(), "everything-cache-" + Guid.NewGuid().ToString("N"));
+        var cacheDir = NewCacheDir();
         try
         {
             t.File("x.txt", 10);
@@ -70,8 +72,32 @@ public class VolumeIndexerTests
                 await first.StartAsync();
             Assert.Single(Directory.GetFiles(cacheDir, "*.evix"));
 
+            // Kapalıyken eklenen dosya: günlük yok ve önbellek taze → tarama yapılmaz.
             t.File("y.txt", 20);
-            using var second = new VolumeIndexer(t.Root, cacheDir);
+            using var second = new VolumeIndexer(t.Root, new VolumeIndexerOptions { CacheDirectory = cacheDir, RefreshIfOlderThan = TimeSpan.FromDays(3) });
+            await second.StartAsync();
+            Assert.Equal(IndexState.Ready, second.State);
+            Assert.Equal(10, second.Index!.GetSize(FileIndex.RootId));
+        }
+        finally
+        {
+            Directory.Delete(cacheDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Start_RescansWhenCacheIsTooOld()
+    {
+        using var t = new TempTree();
+        var cacheDir = NewCacheDir();
+        try
+        {
+            t.File("x.txt", 10);
+            using (var first = new VolumeIndexer(t.Root, cacheDir))
+                await first.StartAsync();
+
+            t.File("y.txt", 20);
+            using var second = new VolumeIndexer(t.Root, new VolumeIndexerOptions { CacheDirectory = cacheDir, RefreshIfOlderThan = TimeSpan.Zero });
             await second.StartAsync();
             Assert.Equal(30, second.Index!.GetSize(FileIndex.RootId));
         }
@@ -80,4 +106,81 @@ public class VolumeIndexerTests
             Directory.Delete(cacheDir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task Start_CatchesUpFromJournalInsteadOfRescanning()
+    {
+        using var t = new TempTree();
+        var cacheDir = NewCacheDir();
+        var journal = new FakeUsnJournal(t.Root);
+        try
+        {
+            t.File("docs/a.txt", 10);
+            var options = new VolumeIndexerOptions { CacheDirectory = cacheDir, JournalFactory = _ => journal.Share(), JournalPollInterval = TimeSpan.FromMilliseconds(50) };
+            using (var first = new VolumeIndexer(t.Root, options))
+            {
+                await first.StartAsync();
+                Assert.True(first.UsesJournal);
+            }
+
+            // Kapalıyken: yeni dosya, silinen dosya, yeniden adlandırılan klasör.
+            t.File("docs/b.txt", 20);
+            journal.Add(UsnReason.FileCreate, t.PathOf("docs/b.txt"));
+            File.Delete(t.PathOf("docs/a.txt"));
+            journal.Add(UsnReason.FileDelete, t.PathOf("docs/a.txt"));
+            journal.Add(UsnReason.RenameOldName, t.PathOf("docs"), isDirectory: true);
+            Directory.Move(t.PathOf("docs"), t.PathOf("belgeler"));
+            journal.Add(UsnReason.RenameNewName, t.PathOf("belgeler"), isDirectory: true);
+
+            // Günlüğe yazılmamış bir değişiklik: tam tarama yapılsaydı görünürdü.
+            t.File("gizli.txt", 1000);
+
+            using var second = new VolumeIndexer(t.Root, options);
+            await second.StartAsync();
+            var index = second.Index!;
+            Assert.Equal(3, second.CatchUpChanges);
+            Assert.NotEqual(FileIndex.None, index.FindPath(t.PathOf("belgeler/b.txt")));
+            Assert.Equal(FileIndex.None, index.FindPath(t.PathOf("docs")));
+            Assert.Equal(FileIndex.None, index.FindPath(t.PathOf("gizli.txt")));
+            Assert.Equal(20, index.GetSize(FileIndex.RootId));
+
+            // Canlı güncellemeler de günlükten gelir.
+            t.File("belgeler/c.txt", 5);
+            journal.Add(UsnReason.FileCreate | UsnReason.Close, t.PathOf("belgeler/c.txt"));
+            for (var i = 0; i < 100 && index.FindPath(t.PathOf("belgeler/c.txt")) == FileIndex.None; i++)
+                await Task.Delay(50);
+            Assert.Equal(25, index.GetSize(FileIndex.RootId));
+        }
+        finally
+        {
+            Directory.Delete(cacheDir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Start_RescansWhenJournalWasReset()
+    {
+        using var t = new TempTree();
+        var cacheDir = NewCacheDir();
+        var journal = new FakeUsnJournal(t.Root);
+        try
+        {
+            t.File("a.txt", 10);
+            var options = new VolumeIndexerOptions { CacheDirectory = cacheDir, JournalFactory = _ => journal.Share() };
+            using (var first = new VolumeIndexer(t.Root, options))
+                await first.StartAsync();
+
+            t.File("b.txt", 20);
+            journal.Reset();
+            using var second = new VolumeIndexer(t.Root, options);
+            await second.StartAsync();
+            Assert.Equal(30, second.Index!.GetSize(FileIndex.RootId));
+        }
+        finally
+        {
+            Directory.Delete(cacheDir, recursive: true);
+        }
+    }
+
+    private static string NewCacheDir() => Path.Combine(Path.GetTempPath(), "everything-cache-" + Guid.NewGuid().ToString("N"));
 }
