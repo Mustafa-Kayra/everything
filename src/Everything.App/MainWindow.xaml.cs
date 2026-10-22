@@ -80,8 +80,9 @@ public partial class MainWindow : Window
             _statusTimer.Stop();
             if (!App.Instance.IsExiting)
             {
+                // Kapanmakta olan pencereyi Exit içinde yeniden kapatmaya çalışmamak için sonraya bırak.
                 e.Cancel = true;
-                App.Instance.Exit();
+                Dispatcher.BeginInvoke(App.Instance.Exit);
             }
             return;
         }

@@ -131,17 +131,19 @@ internal static class Updater
 
     /// <summary>
     /// İndirilen güncellemeyi uygular; ardından uygulama kapanmalıdır.
+    /// Yeni süreç başlatılamazsa hata fırlatır ve <paramref name="beforeRestart"/> çağrılmaz.
     /// <paramref name="beforeRestart"/>: önbelleği kaydetme, tek örnek kilidini bırakma vb.
     /// </summary>
     public static void Apply(string downloadedFile, Action beforeRestart)
     {
         if (AppPaths.IsInstalled)
         {
-            beforeRestart();
+            // UAC iptal edilirse burada hata fırlar ve uygulama çalışmaya devam eder.
             Process.Start(new ProcessStartInfo(downloadedFile, "/SILENT /SP- /SUPPRESSMSGBOXES /NOCANCEL /CLOSEAPPLICATIONS /NORESTART")
             {
                 UseShellExecute = true,
             });
+            beforeRestart();
             return;
         }
 
@@ -160,8 +162,9 @@ internal static class Updater
             File.Move(old, current);
             throw;
         }
-        beforeRestart();
+        // Yeni örnek "--updated" ile bu örneğin kilidi bırakmasını bekler.
         Process.Start(new ProcessStartInfo(current, "--updated") { UseShellExecute = true });
+        beforeRestart();
     }
 
     /// <summary>Önceki portable güncellemeden kalan eski exe'yi ve indirilen dosyaları siler.</summary>

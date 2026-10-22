@@ -24,6 +24,9 @@ public sealed class CleanupTarget : INotifyPropertyChanged
     public IReadOnlyList<string> Files { get; init; } = Array.Empty<string>();
 
     public bool RequiresAdmin { get; init; }
+
+    /// <summary>Bundan yeni dosyalar silinmez (çalışan programların geçici dosyaları korunsun).</summary>
+    public TimeSpan MinAge { get; init; }
     public bool IsRecycleBin { get; init; }
 
     /// <summary>Silinmez; yalnızca "İncele" ile aramada gösterilir.</summary>
@@ -105,17 +108,19 @@ internal static class CleanupTargets
             new()
             {
                 Name = "Geçici dosyalar",
-                Description = "Programların bıraktığı geçici dosyalar (%TEMP%). Kullanımdaki dosyalar atlanır.",
+                Description = "Programların bıraktığı, 24 saatten eski geçici dosyalar (%TEMP%). Kullanımdaki dosyalar atlanır.",
                 Glyph = "",
                 Folders = new[] { Path.GetTempPath() },
+                MinAge = TimeSpan.FromHours(24),
                 IsChecked = true,
             },
             new()
             {
                 Name = "Windows geçici dosyaları",
-                Description = Path.Combine(windows, "Temp"),
+                Description = Path.Combine(windows, "Temp") + " (24 saatten eski dosyalar)",
                 Glyph = "",
                 Folders = new[] { Path.Combine(windows, "Temp") },
+                MinAge = TimeSpan.FromHours(24),
                 RequiresAdmin = true,
                 IsChecked = true,
             },
@@ -247,6 +252,7 @@ internal static class CleanupTargets
     private static IEnumerable<FileInfo> EnumerateFiles(CleanupTarget target, CancellationToken cancellationToken)
     {
         var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        var newest = DateTime.UtcNow - target.MinAge;
         foreach (var folder in ExpandFolders(target.Folders))
         {
             IEnumerable<FileInfo> files;
@@ -261,6 +267,8 @@ internal static class CleanupTargets
             foreach (var file in files)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (target.MinAge > TimeSpan.Zero && file.LastWriteTimeUtc > newest)
+                    continue;
                 yield return file;
             }
         }

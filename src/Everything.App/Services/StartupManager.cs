@@ -65,16 +65,20 @@ internal static class StartupManager
         }
     }
 
+    /// <summary>
+    /// Herhangi bir kullanıcı oturum açınca, o kullanıcının oturumunda "mümkün olan en yüksek" yetkiyle
+    /// çalışır: yöneticiler için yükseltilmiş (hızlı NTFS modu), standart kullanıcılar için normal.
+    /// Kurulumu başka bir yönetici hesabıyla onaylayan standart kullanıcılar da böylece kapsanır.
+    /// </summary>
     private static string TaskXml()
     {
-        var user = System.Security.SecurityElement.Escape(WindowsIdentity.GetCurrent().Name);
         var exe = System.Security.SecurityElement.Escape(AppPaths.ExePath);
         return $"""
             <?xml version="1.0" encoding="UTF-16"?>
             <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
               <RegistrationInfo><Description>Everything Arama'yı oturum açılışında yönetici olarak başlatır (hızlı NTFS modu).</Description></RegistrationInfo>
-              <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>{user}</UserId></LogonTrigger></Triggers>
-              <Principals><Principal id="Author"><UserId>{user}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
+              <Triggers><LogonTrigger><Enabled>true</Enabled></LogonTrigger></Triggers>
+              <Principals><Principal id="Author"><GroupId>S-1-5-32-545</GroupId><RunLevel>HighestAvailable</RunLevel></Principal></Principals>
               <Settings>
                 <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
                 <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>

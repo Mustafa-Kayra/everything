@@ -135,14 +135,22 @@ public sealed partial class WindowsUsnJournal : IUsnJournal
     {
         _rootPath = rootPath;
         _volume = WindowsVolume.OpenVolume(rootPath);
-        if (!IsActive())
+        try
         {
-            // Günlük kapalıysa aç (sistem sürücüsünde her zaman açıktır).
-            var create = new byte[16];
-            BinaryPrimitives.WriteUInt64LittleEndian(create, 32UL * 1024 * 1024);
-            BinaryPrimitives.WriteUInt64LittleEndian(create.AsSpan(8), 8UL * 1024 * 1024);
-            Control(FsctlCreateUsnJournal, create, Span<byte>.Empty, out _);
-            Query();
+            if (!IsActive())
+            {
+                // Günlük kapalıysa aç (sistem sürücüsünde her zaman açıktır).
+                var create = new byte[16];
+                BinaryPrimitives.WriteUInt64LittleEndian(create, 32UL * 1024 * 1024);
+                BinaryPrimitives.WriteUInt64LittleEndian(create.AsSpan(8), 8UL * 1024 * 1024);
+                Control(FsctlCreateUsnJournal, create, Span<byte>.Empty, out _);
+                Query();
+            }
+        }
+        catch
+        {
+            _volume.Dispose();
+            throw;
         }
     }
 

@@ -10,7 +10,8 @@ namespace Everything.App.Services;
 /// </summary>
 internal static class FileIdentity
 {
-    [StructLayout(LayoutKind.Sequential)]
+    // FILETIME 4 bayt hizalıdır; long alanlar için Pack = 4 gerekir (aksi halde yapı 4 bayt kayar).
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
     private struct ByHandleFileInformation
     {
         public uint FileAttributes;

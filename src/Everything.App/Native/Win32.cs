@@ -140,7 +140,7 @@ internal static partial class Win32
 
     // ---------------------------------------------------------------- geri dönüşüm kutusu
 
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    [StructLayout(LayoutKind.Sequential)]
     public struct RecycleBinInfo
     {
         public int Size;
@@ -157,4 +157,28 @@ internal static partial class Win32
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern int SHEmptyRecycleBin(IntPtr hwnd, string? rootPath, uint flags);
+
+    // ---------------------------------------------------------------- Geri Dönüşüm Kutusu'na taşıma
+
+    public const uint FoDelete = 3;
+    public const ushort FofNoConfirmation = 0x10;
+    public const ushort FofAllowUndo = 0x40;
+    public const ushort FofWantNukeWarning = 0x4000;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct ShFileOpStruct
+    {
+        public IntPtr Hwnd;
+        public uint Func;
+        public string From;
+        public string? To;
+        public ushort Flags;
+        [MarshalAs(UnmanagedType.Bool)]
+        public bool AnyOperationsAborted;
+        public IntPtr NameMappings;
+        public string? ProgressTitle;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHFileOperation(ref ShFileOpStruct operation);
 }

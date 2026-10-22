@@ -51,6 +51,7 @@ public partial class App : Application
         }
 
         AppServices.Settings = AppSettings.Load();
+        SessionEnding += (_, _) => AppServices.Indexes?.SaveDirtyCaches();
         Updater.CleanupLeftovers();
 
         var roots = DriveInfo.GetDrives()
@@ -75,7 +76,18 @@ public partial class App : Application
             () => Dispatcher.BeginInvoke(ShowMain),
             () => Dispatcher.BeginInvoke(ShowQuickSearch));
         if (args.Contains("--quick"))
+        {
             ShowQuickSearch();
+        }
+        else
+        {
+            // Hızlı arama penceresini boşta hazırla: kısayola ilk basışta da anında açılsın, tuşlar kaybolmasın.
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
+            {
+                _quickSearch ??= new QuickSearchWindow();
+                new System.Windows.Interop.WindowInteropHelper(_quickSearch).EnsureHandle();
+            });
+        }
 
         // Bakım: günlük boyut kaydı ve güncelleme denetimi.
         _maintenance = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
@@ -90,7 +102,9 @@ public partial class App : Application
     private static VolumeIndexerOptions CreateIndexOptions(string root)
     {
         var days = AppServices.Settings.RefreshIfOlderThanDays;
-        var fast = StartupManager.IsElevated && WindowsVolume.IsNtfs(root);
+        // Yalnızca sabit disklerde: birim tanıtıcısı açık kalırsa USB "güvenle kaldır" engellenir.
+        var fixedDrive = new DriveInfo(root).DriveType == DriveType.Fixed;
+        var fast = StartupManager.IsElevated && fixedDrive && WindowsVolume.IsNtfs(root);
         return new VolumeIndexerOptions
         {
             CacheDirectory = AppPaths.CacheDirectory,
@@ -173,6 +187,14 @@ public partial class App : Application
         _quickSearch?.Close();
         MainWindow?.Close();
         Shutdown();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        // Oturum kapanması vb. her çıkış yolunda indeks kaydedilsin.
+        if (_singleInstance is not null)
+            PrepareForRestart();
+        base.OnExit(e);
     }
 
     private async Task RunMaintenanceAsync()
