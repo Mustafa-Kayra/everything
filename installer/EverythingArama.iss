@@ -1,5 +1,5 @@
 ; Everything Arama kurulum betiği (Inno Setup 6).
-; Derleme: ISCC.exe /DAppVersion=0.3.0 /DSourceExe=..\artifacts\publish\EverythingArama.exe installer\EverythingArama.iss
+; Derleme: ISCC.exe /DAppVersion=0.3.1 /DSourceExe=..\artifacts\publish\EverythingArama.exe installer\EverythingArama.iss
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"

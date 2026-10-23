@@ -118,6 +118,35 @@ public class FileIndexTests
         }
     }
 
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(-5)]
+    [InlineData(0)]
+    public void Serializer_ReturnsNullForCorruptCount(int count)
+    {
+        var file = Path.GetTempFileName();
+        try
+        {
+            using (var writer = new BinaryWriter(File.Create(file)))
+            {
+                writer.Write(0x58495645);
+                writer.Write(2);
+                writer.Write(@"C:\");
+                writer.Write(0L);
+                writer.Write(0UL);
+                writer.Write(0L);
+                writer.Write(0L);
+                writer.Write(count);
+                writer.Write(new byte[64]);
+            }
+            Assert.Null(IndexSerializer.TryLoad(file));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
     [Fact]
     public void SpaceAnalyzer_ReportsChildrenLargestFilesAndTypes()
     {

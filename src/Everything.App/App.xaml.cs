@@ -183,6 +183,10 @@ public partial class App : Application
 
     public new void Exit()
     {
+        // Önce pencereleri gizle: büyük indeksin kaydı birkaç saniye sürebilir, donmuş pencere görünmesin.
+        _quickSearch?.Hide();
+        MainWindow?.Hide();
+        _tray?.Dispose();
         PrepareForRestart();
         _quickSearch?.Close();
         MainWindow?.Close();

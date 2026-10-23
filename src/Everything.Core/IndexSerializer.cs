@@ -74,6 +74,9 @@ public static class IndexSerializer
             var nextUsn = reader.ReadInt64();
             var rootReference = reader.ReadInt64();
             var count = reader.ReadInt32();
+            // Her kayıt en az 30 bayt: bozuk bir sayı dev bir dizi ayırtmasın.
+            if (count < 1 || count > (stream.Length - stream.Position) / 30 + 1)
+                return null;
             var index = new FileIndex(root, count);
             index.SetFileReference(FileIndex.RootId, rootReference);
             for (var i = 1; i < count; i++)
@@ -95,8 +98,9 @@ public static class IndexSerializer
             index.NextUsn = nextUsn;
             return index;
         }
-        catch (Exception ex) when (ex is IOException or EndOfStreamException or UnauthorizedAccessException or FormatException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Bozuk önbellek hiçbir zaman açılışı durdurmamalı; null dönünce baştan taranır.
             return null;
         }
     }

@@ -13,6 +13,7 @@ public partial class SpaceView : UserControl
     private CancellationTokenSource? _analysisCts;
     private FileIndex? _treeIndex;
     private int _selectedDirectory = FileIndex.None;
+    private int _growthVersion;
     private bool? _legendDark;
 
     public SpaceView()
@@ -311,6 +312,7 @@ public partial class SpaceView : UserControl
             return;
         var days = int.Parse((string)((ComboBoxItem)GrowthPeriod.SelectedItem).Tag);
         var growth = GrowthDirection.SelectedIndex == 0;
+        var version = ++_growthVersion;
         GrowthInfo.Text = "Hesaplanıyor…";
 
         var (rows, info) = await Task.Run(() =>
@@ -325,6 +327,9 @@ public partial class SpaceView : UserControl
             var since = old.TakenUtc.ToLocalTime();
             return (list, $"{since:g} tarihindeki kayıtla karşılaştırıldı");
         });
+        // Bu arada başka bir hacim/dönem seçildiyse eski sonuç yenisinin üzerine yazılmasın.
+        if (version != _growthVersion)
+            return;
         GrowthList.ItemsSource = rows;
         GrowthInfo.Text = info;
     }

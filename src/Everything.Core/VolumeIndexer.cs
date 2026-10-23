@@ -96,6 +96,24 @@ public sealed class VolumeIndexer : IDisposable
     /// <summary>Önbelleği yükler, değişiklikleri yakalar ve canlı izlemeyi başlatır.</summary>
     public async Task StartAsync()
     {
+        try
+        {
+            await StartCoreAsync().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Beklenmeyen bir hata hacmi sonsuza dek "Yükleniyor"da bırakmasın.
+            Error = ex.Message;
+            SetState(IndexState.Failed);
+        }
+    }
+
+    private async Task StartCoreAsync()
+    {
         SetState(IndexState.Loading);
         FileIndex? cached = null;
         if (_cacheFile is not null)
@@ -149,6 +167,9 @@ public sealed class VolumeIndexer : IDisposable
         try
         {
             Interlocked.Exchange(ref _rescanRequested, 0);
+            // Taramadan önce kuyruğa girmiş olaylar taramanın kendisiyle geçersiz kalır (ör. taşma sonrası
+            // eksik/eski olaylar); yeni indekse uygulanmasınlar. Tarama sırasında gelenler ise uygulanır.
+            DiscardQueuedChanges();
             SetState(IndexState.Scanning);
             var progress = new SynchronousProgress<ScanProgress>(p =>
             {
@@ -401,6 +422,14 @@ public sealed class VolumeIndexer : IDisposable
         Interlocked.Increment(ref _pending);
         if (!_changes.Writer.TryWrite(change))
             Interlocked.Decrement(ref _pending);
+    }
+
+    private void DiscardQueuedChanges()
+    {
+        var discarded = 0;
+        while (_changes.Reader.TryRead(out _))
+            discarded++;
+        Interlocked.Add(ref _pending, -discarded);
     }
 
     private void RequestRescan()
