@@ -22,7 +22,14 @@ public enum EntryKind
 /// <item><c>file:</c> / <c>folder:</c> (veya <c>dosya:</c> / <c>klasör:</c>) — tür</item>
 /// <item><c>ProjeX\src</c> — ters/eğik çizgi içeren terimler tam yolda aranır</item>
 /// <item><c>path:Belgeler</c> — terimi tam yolda ara</item>
+/// <item><c>dm:bugün</c>, <c>dün</c>, <c>buhafta</c>, <c>geçenhafta</c>, <c>buay</c>, <c>geçenay</c>, <c>buyıl</c>, <c>geçenyıl</c>
+/// (veya <c>today</c>, <c>lastweek</c> …) — değişiklik tarihi (<c>tarih:</c> / <c>date:</c> da olur)</item>
+/// <item><c>dm:son7g</c>, <c>son24s</c>, <c>son3ay</c>, <c>son1y</c> (veya <c>last7d</c>, <c>last24h</c>, <c>last3m</c>, <c>last1y</c>) — son gün/saat/ay/yıl</item>
+/// <item><c>dm:2024</c>, <c>dm:2024-05</c>, <c>dm:2024-05-17</c>, <c>dm:17.05.2024</c>, <c>dm:05.2024</c> — o dönemin tamamı</item>
+/// <item><c>dm:&gt;2024-01-01</c>, <c>dm:&lt;=2023</c>, <c>dm:2024-01-01..2024-03-31</c> — karşılaştırma ve aralık (bitiş dönemi dahil)</item>
 /// </list>
+/// Tarihler yerel saate göre yorumlanır. Varsayılan olarak ad, hariç tutma, yol ve joker terimleri
+/// aksan ve Türkçe karakter duyarsızdır: "sarki" → "Şarkı.mp3", "izmir" → "İzmir".
 /// </summary>
 public sealed class SearchQuery
 {
@@ -40,22 +47,42 @@ public sealed class SearchQuery
     public long? MaxSize { get; private init; }
     public EntryKind Kind { get; private init; }
 
+    /// <summary>Değişiklik zamanı alt sınırı (UTC tik, dahil).</summary>
+    public long? MinModifiedTicks { get; private init; }
+
+    /// <summary>Değişiklik zamanı üst sınırı (UTC tik, dahil).</summary>
+    public long? MaxModifiedTicks { get; private init; }
+
+    /// <summary>
+    /// True ise ad/yol terimleri aksan ve Türkçe karakter duyarsız eşleşir; terimler
+    /// (<see cref="NameTerms"/>, <see cref="PathTerms"/>, <see cref="ExcludedTerms"/>) <see cref="TextFolding"/> ile katlanmış tutulur.
+    /// </summary>
+    public bool IgnoreDiacritics { get; private init; }
+
     /// <summary>Sorgu hiçbir kısıt içermiyorsa true.</summary>
     public bool IsEmpty =>
         NameTerms.Count == 0 && PathTerms.Count == 0 && ExcludedTerms.Count == 0 && Wildcards.Count == 0
-        && Extensions is null && MinSize is null && MaxSize is null && Kind == EntryKind.Any;
+        && Extensions is null && MinSize is null && MaxSize is null && Kind == EntryKind.Any
+        && MinModifiedTicks is null && MaxModifiedTicks is null;
 
     public bool NeedsFullPath => PathTerms.Count > 0;
 
-    public static SearchQuery Parse(string? text)
+    public static SearchQuery Parse(string? text, bool ignoreDiacritics = true) =>
+        Parse(text, ignoreDiacritics, DateTime.Now);
+
+    /// <param name="nowLocal">"bugün", "son7g" gibi göreli tarihlerin hesaplandığı yerel an (testler için).</param>
+    public static SearchQuery Parse(string? text, bool ignoreDiacritics, DateTime nowLocal)
     {
         text ??= string.Empty;
+        if (nowLocal.Kind == DateTimeKind.Utc)
+            nowLocal = nowLocal.ToLocalTime();
         var names = new List<string>();
         var paths = new List<string>();
         var excluded = new List<string>();
         var wildcards = new List<Wildcard>();
         HashSet<string>? extensions = null;
         long? min = null, max = null;
+        long? minModified = null, maxModified = null;
         var kind = EntryKind.Any;
 
         foreach (var token in Tokenize(text))
@@ -74,12 +101,24 @@ public sealed class SearchQuery
                 case "boyut":
                     ParseSize(value, ref min, ref max);
                     continue;
+                case "dm":
+                case "tarih":
+                case "date":
+                    // Birden çok tarih filtresi kesişir; çözülemeyen değer yok sayılır.
+                    if (DateFilter.TryParse(value, nowLocal, out var lo, out var hi))
+                    {
+                        if (lo is not null)
+                            minModified = Math.Max(lo.Value, minModified ?? long.MinValue);
+                        if (hi is not null)
+                            maxModified = Math.Min(hi.Value, maxModified ?? long.MaxValue);
+                    }
+                    continue;
                 case "file":
                 case "files":
                 case "dosya":
                     kind = EntryKind.File;
                     if (value.Length > 0)
-                        AddTerm(value, false, names, paths, excluded, wildcards);
+                        AddTerm(value, false, ignoreDiacritics, names, paths, excluded, wildcards);
                     continue;
                 case "folder":
                 case "folders":
@@ -87,16 +126,16 @@ public sealed class SearchQuery
                 case "klasor":
                     kind = EntryKind.Folder;
                     if (value.Length > 0)
-                        AddTerm(value, false, names, paths, excluded, wildcards);
+                        AddTerm(value, false, ignoreDiacritics, names, paths, excluded, wildcards);
                     continue;
                 case "path":
                 case "yol":
                     if (value.Length > 0)
-                        paths.Add(value);
+                        paths.Add(ignoreDiacritics ? TextFolding.Fold(value) : value);
                     continue;
             }
 
-            AddTerm(token.Value, token.Quoted, names, paths, excluded, wildcards);
+            AddTerm(token.Value, token.Quoted, ignoreDiacritics, names, paths, excluded, wildcards);
         }
 
         return new SearchQuery
@@ -110,23 +149,29 @@ public sealed class SearchQuery
             MinSize = min,
             MaxSize = max,
             Kind = kind,
+            MinModifiedTicks = minModified,
+            MaxModifiedTicks = maxModified,
+            IgnoreDiacritics = ignoreDiacritics,
         };
     }
 
-    private static void AddTerm(string term, bool quoted, List<string> names, List<string> paths, List<string> excluded, List<Wildcard> wildcards)
+    private static void AddTerm(string term, bool quoted, bool fold, List<string> names, List<string> paths, List<string> excluded, List<Wildcard> wildcards)
     {
         if (term.Length == 0)
             return;
         if (!quoted && term.Length > 1 && term[0] == '!')
         {
-            excluded.Add(term[1..]);
+            excluded.Add(fold ? TextFolding.Fold(term[1..]) : term[1..]);
             return;
         }
         if (!quoted && (term.Contains('*') || term.Contains('?')))
         {
-            wildcards.Add(new Wildcard(term));
+            wildcards.Add(new Wildcard(term, fold));
             return;
         }
+        // Terimler aramada her ad için yeniden katlanmasın diye burada bir kez katlanır.
+        if (fold)
+            term = TextFolding.Fold(term);
         if (term.Contains('\\') || term.Contains('/'))
         {
             paths.Add(term.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar));
@@ -146,7 +191,8 @@ public sealed class SearchQuery
         return prefix switch
         {
             "ext" or "uzantı" or "uzanti" or "size" or "boyut" or "file" or "files" or "dosya"
-                or "folder" or "folders" or "klasör" or "klasor" or "path" or "yol" => (prefix, token[(colon + 1)..].Trim('"')),
+                or "folder" or "folders" or "klasör" or "klasor" or "path" or "yol"
+                or "dm" or "tarih" or "date" => (prefix, token[(colon + 1)..].Trim('"')),
             _ => (string.Empty, token),
         };
     }

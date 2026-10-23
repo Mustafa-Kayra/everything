@@ -29,6 +29,7 @@ public sealed class FileIndex
     private long[] _modified;
     private int[] _fileCount;
     private byte[] _flags;
+    private long[] _fileReference;
     private int _count;
     private int _liveCount;
 
@@ -44,6 +45,7 @@ public sealed class FileIndex
         _modified = new long[capacity];
         _fileCount = new int[capacity];
         _flags = new byte[capacity];
+        _fileReference = new long[capacity];
 
         AddEntry(None, rootPath, isDirectory: true, size: 0, modifiedTicks: 0, isReparsePoint: false);
     }
@@ -59,7 +61,30 @@ public sealed class FileIndex
     /// <summary>Kök hariç, silinmemiş kayıt sayısı.</summary>
     public int Count => _liveCount - 1;
 
-    public DateTime LastUpdatedUtc { get; internal set; } = DateTime.UtcNow;
+    public DateTime LastUpdatedUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>NTFS USN günlüğünün kimliği (MFT ile oluşturulan indekslerde; yoksa 0).</summary>
+    public ulong UsnJournalId { get; set; }
+
+    /// <summary>İndeksin güncel olduğu son USN; açılışta bu noktadan itibaren değişiklikler okunur.</summary>
+    public long NextUsn { get; set; }
+
+    /// <summary>NTFS dosya referans numarası (MFT kayıt no + sıra no); bilinmiyorsa 0.</summary>
+    public long GetFileReference(int id) => _fileReference[id];
+
+    public void SetFileReference(int id, long fileReference) => _fileReference[id] = fileReference;
+
+    /// <summary>Dosya referansı → kayıt kimliği eşlemesi (USN değişikliklerini uygulamak için).</summary>
+    public Dictionary<long, int> BuildFileReferenceMap()
+    {
+        var map = new Dictionary<long, int>(_count);
+        for (var i = 0; i < _count; i++)
+        {
+            if (_fileReference[i] != 0 && !IsDeleted(i))
+                map[_fileReference[i]] = i;
+        }
+        return map;
+    }
 
     public string GetName(int id) => _names[id];
     public int GetParent(int id) => _parent[id];
@@ -123,6 +148,7 @@ public sealed class FileIndex
         _modified[id] = modifiedTicks;
         _fileCount[id] = 0;
         _flags[id] = (byte)((isDirectory ? FlagDirectory : 0) | (isReparsePoint ? FlagReparsePoint : 0));
+        _fileReference[id] = 0;
         _nextSibling[id] = None;
         if (parent != None)
         {
@@ -239,6 +265,7 @@ public sealed class FileIndex
                 continue;
             map[id] = AddEntry(map[source._parent[id]], source._names[id], source.IsDirectory(id),
                 source._size[id], source._modified[id], source.IsReparsePoint(id));
+            _fileReference[map[id]] = source._fileReference[id];
         }
         RecomputeSubtree(targetDirectoryId);
     }
@@ -375,5 +402,6 @@ public sealed class FileIndex
         Array.Resize(ref _modified, capacity);
         Array.Resize(ref _fileCount, capacity);
         Array.Resize(ref _flags, capacity);
+        Array.Resize(ref _fileReference, capacity);
     }
 }

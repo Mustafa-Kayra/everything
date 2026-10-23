@@ -29,25 +29,18 @@ public sealed class PercentToWidthConverter : IValueConverter
         throw new NotSupportedException();
 }
 
-/// <summary>Doluluk yüzdesine göre renk: mavi, turuncu (≥75), kırmızı (≥90).</summary>
+/// <summary>Doluluk yüzdesine göre temanın renkleri: vurgu, uyarı (≥75), kritik (≥90).</summary>
 public sealed class UsageBrushConverter : IValueConverter
 {
-    private static readonly Brush Normal = Freeze(new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xEB)));
-    private static readonly Brush Warn = Freeze(new SolidColorBrush(Color.FromRgb(0xF5, 0x9E, 0x0B)));
-    private static readonly Brush Danger = Freeze(new SolidColorBrush(Color.FromRgb(0xDC, 0x26, 0x26)));
-
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         var percent = value is double d ? d : 0;
-        return percent >= 90 ? Danger : percent >= 75 ? Warn : Normal;
+        var key = percent >= 90 ? "SystemFillColorCriticalBrush"
+            : percent >= 75 ? "SystemFillColorCautionBrush"
+            : "AccentFillColorDefaultBrush";
+        return System.Windows.Application.Current.TryFindResource(key) as Brush ?? Brushes.SteelBlue;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
         throw new NotSupportedException();
-
-    private static Brush Freeze(Brush brush)
-    {
-        brush.Freeze();
-        return brush;
-    }
 }

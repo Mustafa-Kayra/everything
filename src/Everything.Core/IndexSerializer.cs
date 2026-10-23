@@ -7,7 +7,7 @@ namespace Everything.Core;
 public static class IndexSerializer
 {
     private const int Magic = 0x58495645; // "EVIX"
-    private const int Version = 1;
+    private const int Version = 2;
 
     public static void Save(FileIndex index, string filePath)
     {
@@ -30,6 +30,9 @@ public static class IndexSerializer
                 writer.Write(Version);
                 writer.Write(index.RootPath);
                 writer.Write(index.LastUpdatedUtc.Ticks);
+                writer.Write(index.UsnJournalId);
+                writer.Write(index.NextUsn);
+                writer.Write(index.GetFileReference(FileIndex.RootId));
                 writer.Write(order.Count);
 
                 foreach (var id in order)
@@ -42,6 +45,7 @@ public static class IndexSerializer
                     writer.Write(flags);
                     writer.Write(index.IsDirectory(id) ? 0L : index.GetSize(id));
                     writer.Write(index.GetModifiedTicks(id));
+                    writer.Write(index.GetFileReference(id));
                 }
             }
             finally
@@ -66,8 +70,15 @@ public static class IndexSerializer
 
             var root = reader.ReadString();
             var updated = reader.ReadInt64();
+            var journalId = reader.ReadUInt64();
+            var nextUsn = reader.ReadInt64();
+            var rootReference = reader.ReadInt64();
             var count = reader.ReadInt32();
+            // Her kayıt en az 30 bayt: bozuk bir sayı dev bir dizi ayırtmasın.
+            if (count < 1 || count > (stream.Length - stream.Position) / 30 + 1)
+                return null;
             var index = new FileIndex(root, count);
+            index.SetFileReference(FileIndex.RootId, rootReference);
             for (var i = 1; i < count; i++)
             {
                 var parent = reader.ReadInt32();
@@ -75,16 +86,21 @@ public static class IndexSerializer
                 var flags = reader.ReadByte();
                 var size = reader.ReadInt64();
                 var modified = reader.ReadInt64();
+                var reference = reader.ReadInt64();
                 if (parent < 0 || parent >= i)
                     return null;
-                index.AddEntry(parent, name, (flags & 1) != 0, size, modified, (flags & 2) != 0);
+                var id = index.AddEntry(parent, name, (flags & 1) != 0, size, modified, (flags & 2) != 0);
+                index.SetFileReference(id, reference);
             }
             index.ComputeAggregates();
             index.LastUpdatedUtc = new DateTime(updated, DateTimeKind.Utc);
+            index.UsnJournalId = journalId;
+            index.NextUsn = nextUsn;
             return index;
         }
-        catch (Exception ex) when (ex is IOException or EndOfStreamException or UnauthorizedAccessException or FormatException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Bozuk önbellek hiçbir zaman açılışı durdurmamalı; null dönünce baştan taranır.
             return null;
         }
     }

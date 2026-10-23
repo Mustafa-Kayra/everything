@@ -2,18 +2,33 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- DPI ayarı WPF için manifestte; WinForms yalnızca tepsi simgesinde kullanılıyor. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AssemblyName>Everything</AssemblyName>
+    <AssemblyName>EverythingArama</AssemblyName>
     <RootNamespace>Everything.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
-    <Product>Everything</Product>
+    <Version>0.3.1</Version>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Product>Everything Arama</Product>
     <Description>Anında dosya arama, disk bilgileri ve disk alanı analizi</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- WinForms yalnızca tepsi simgesi için; WPF türleriyle çakışmasın. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="8.0.0" />

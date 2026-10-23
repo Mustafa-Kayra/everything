@@ -2,10 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Everything.App"
-        Title="Everything — Dosya Arama ve Disk Analizi"
-        Width="1240" Height="780" MinWidth="820" MinHeight="500"
+        xmlns:views="clr-namespace:Everything.App.Views"
+        Title="Everything"
+        Width="1200" Height="780" MinWidth="860" MinHeight="520"
         WindowStartupLocation="CenterScreen"
-        FontFamily="Segoe UI" FontSize="13"
+        FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="13"
+        Icon="pack://application:,,,/Assets/app.ico"
         Loaded="OnLoaded" Closing="OnClosing">
 
     <Window.InputBindings>
@@ -18,299 +20,53 @@
     </Window.CommandBindings>
 
     <Window.Resources>
-        <!-- Arama sonucu / dosya listeleri için ortak sağ tık menüsü -->
-        <ContextMenu x:Key="ItemMenu" x:Shared="False">
-            <MenuItem Header="Aç" Click="OnMenuOpen" FontWeight="SemiBold" />
-            <MenuItem Header="Dosya konumunu aç" Click="OnMenuShowInExplorer" />
-            <MenuItem Header="Tam yolu kopyala" Click="OnMenuCopyPath" />
-            <Separator />
-            <MenuItem Header="Geri Dönüşüm Kutusu'na taşı…" Click="OnMenuDelete" />
-        </ContextMenu>
+        <DataTemplate x:Key="TabHeader">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Style="{StaticResource Icon}" Text="{Binding Tag, RelativeSource={RelativeSource AncestorType=TabItem}}" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding}" VerticalAlignment="Center" />
+            </StackPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <DockPanel>
-        <StatusBar DockPanel.Dock="Bottom" Padding="6,2">
-            <StatusBarItem>
-                <TextBlock x:Name="StatusText" Text="Başlatılıyor…" />
-            </StatusBarItem>
-            <StatusBarItem HorizontalAlignment="Right">
-                <ProgressBar x:Name="BusyBar" Width="140" Height="10" IsIndeterminate="True" Visibility="Collapsed" />
-            </StatusBarItem>
-        </StatusBar>
+        <!-- Güncelleme bildirimi -->
+        <Border x:Name="UpdateBanner" DockPanel.Dock="Top" Visibility="Collapsed" Margin="12,10,12,0" Padding="14,8" CornerRadius="6"
+                Background="{DynamicResource SubtleFillColorSecondaryBrush}" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Sonra" Click="OnDismissUpdate" Padding="10,4" Margin="8,0,0,0" />
+                <Button DockPanel.Dock="Right" Content="Güncelle" Click="OnShowUpdate" Padding="12,4" Style="{DynamicResource AccentButtonStyle}" />
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE896;" Margin="0,0,10,0" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                <TextBlock x:Name="UpdateBannerText" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
 
-        <TabControl x:Name="Tabs" Margin="8" SelectionChanged="OnTabChanged">
+        <!-- Durum çubuğu -->
+        <Border DockPanel.Dock="Bottom" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}" Padding="16,6">
+            <DockPanel>
+                <ProgressBar x:Name="BusyBar" DockPanel.Dock="Right" Width="120" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center" />
+                <TextBlock x:Name="ModeBadge" DockPanel.Dock="Right" Style="{StaticResource Caption}" Margin="0,0,16,0" VerticalAlignment="Center" />
+                <TextBlock x:Name="StatusText" Text="Başlatılıyor…" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
 
-            <!-- ============ ARA ============ -->
-            <TabItem Header="🔍  Ara" x:Name="SearchTab">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-
-                    <Grid>
-                        <TextBox x:Name="SearchBox" FontSize="17" Padding="8,6"
-                                 TextChanged="OnSearchTextChanged" PreviewKeyDown="OnSearchKeyDown" />
-                        <TextBlock Text="Dosya veya klasör adı yazın…  (örn: rapor ext:pdf, *.mp4 size:>1gb, folder:proje)"
-                                   IsHitTestVisible="False" Margin="11,0,0,0" VerticalAlignment="Center" FontSize="15"
-                                   Style="{StaticResource Muted}" x:Name="SearchPlaceholder" />
-                    </Grid>
-
-                    <DockPanel Grid.Row="1" Margin="2,6">
-                        <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}">
-                            <Hyperlink Click="OnShowSearchHelp">Arama ipuçları</Hyperlink>
-                        </TextBlock>
-                        <TextBlock x:Name="SearchInfo" Style="{StaticResource Muted}" />
-                    </DockPanel>
-
-                    <ListView x:Name="ResultsList" Grid.Row="2"
-                              VirtualizingPanel.IsVirtualizing="True"
-                              VirtualizingPanel.VirtualizationMode="Recycling"
-                              VirtualizingPanel.ScrollUnit="Item"
-                              SelectionMode="Extended"
-                              ContextMenu="{StaticResource ItemMenu}"
-                              MouseDoubleClick="OnResultDoubleClick"
-                              KeyDown="OnResultKeyDown"
-                              GridViewColumnHeader.Click="OnResultHeaderClick">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Ad" Width="340">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" />
-                                                <TextBlock Text="{Binding Name}" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Konum" Width="470" DisplayMemberBinding="{Binding Folder}" />
-                                <GridViewColumn Header="Boyut" Width="110">
-                                    <GridViewColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource RightCell}" />
-                                        </DataTemplate>
-                                    </GridViewColumn.CellTemplate>
-                                </GridViewColumn>
-                                <GridViewColumn Header="Değiştirilme" Width="150" DisplayMemberBinding="{Binding ModifiedText}" />
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                </Grid>
+        <TabControl x:Name="Tabs" Margin="12,8,12,0" SelectionChanged="OnTabChanged" BorderThickness="0" Background="Transparent">
+            <TabItem Header="Ara" Tag="&#xE721;" HeaderTemplate="{StaticResource TabHeader}" x:Name="SearchTab">
+                <views:SearchView x:Name="SearchView" />
             </TabItem>
-
-            <!-- ============ DİSKLER ============ -->
-            <TabItem Header="💽  Diskler" x:Name="DisksTab">
-                <DockPanel Margin="10">
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,10">
-                        <Button Content="Yenile" Click="OnRefreshDisks" />
-                        <TextBlock x:Name="DisksInfo" VerticalAlignment="Center" Style="{StaticResource Muted}" />
-                    </StackPanel>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl x:Name="DisksList">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type local:DiskInfo}">
-                                    <Border Width="440" Margin="0,0,14,14" Padding="16" CornerRadius="8"
-                                            BorderThickness="1" BorderBrush="{StaticResource BorderBrushLight}" Background="{StaticResource PanelBrush}">
-                                        <StackPanel>
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Right" Text="{Binding MediaType}" FontWeight="Bold"
-                                                           Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
-                                                <TextBlock Text="{Binding Title}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                            </DockPanel>
-                                            <TextBlock Text="{Binding Model}" Style="{StaticResource Muted}" Margin="0,2,0,10" TextTrimming="CharacterEllipsis" />
-
-                                            <Grid Height="18">
-                                                <Border Background="#E5E7EB" CornerRadius="4" />
-                                                <ProgressBar Value="{Binding UsedPercent, Mode=OneWay}" Maximum="100" BorderThickness="0"
-                                                             Background="Transparent" Foreground="{Binding UsedPercent, Converter={StaticResource UsageBrush}}" />
-                                                <TextBlock Text="{Binding UsedPercentText}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                           FontSize="11" FontWeight="SemiBold" />
-                                            </Grid>
-                                            <TextBlock Text="{Binding UsageText}" Margin="0,6,0,10" />
-
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="140" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
-                                                    <RowDefinition /><RowDefinition /><RowDefinition />
-                                                </Grid.RowDefinitions>
-                                                <TextBlock Grid.Row="0" Text="Sağlık durumu" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="0" Grid.Column="1">
-                                                    <Run Text="{Binding HealthIcon, Mode=OneWay}" /> <Run Text="{Binding Health, Mode=OneWay}" />
-                                                </TextBlock>
-                                                <TextBlock Grid.Row="1" Text="Bağlantı" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BusType}" />
-                                                <TextBlock Grid.Row="2" Text="Dosya sistemi" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FileSystem}" />
-                                                <TextBlock Grid.Row="3" Text="Sürücü türü" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DriveType}" />
-                                                <TextBlock Grid.Row="4" Text="Fiziksel disk boyutu" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding PhysicalSizeText}" />
-                                                <TextBlock Grid.Row="5" Text="Disk seri no" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding SerialNumber}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Grid.Row="6" Text="Birim seri no" Style="{StaticResource Muted}" />
-                                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding VolumeSerial}" />
-                                            </Grid>
-
-                                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                                <Button Content="📊  Alan analizi" Click="OnAnalyzeDisk" Tag="{Binding RootPath}" />
-                                                <Button Content="Gezgin'de aç" Click="OnOpenDisk" Tag="{Binding RootPath}" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </DockPanel>
+            <TabItem Header="Diskler" Tag="&#xEDA2;" HeaderTemplate="{StaticResource TabHeader}" x:Name="DisksTab">
+                <views:DisksView x:Name="DisksView" />
             </TabItem>
-
-            <!-- ============ ALAN ANALİZİ ============ -->
-            <TabItem Header="📊  Alan Analizi" x:Name="SpaceTab">
-                <DockPanel Margin="10">
-                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-                        <TextBlock Text="Sürücü:" VerticalAlignment="Center" Margin="0,0,8,0" />
-                        <ComboBox x:Name="VolumeCombo" Width="120" Margin="0,0,8,0" SelectionChanged="OnVolumeChanged" />
-                        <Button Content="Görünümü yenile" Click="OnRefreshSpace" />
-                        <Button Content="Yeniden tara" Click="OnRescanVolume" />
-                        <TextBlock x:Name="SpaceInfo" VerticalAlignment="Center" Style="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
-                    </DockPanel>
-
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="6*" MinWidth="300" />
-                            <ColumnDefinition Width="6" />
-                            <ColumnDefinition Width="5*" MinWidth="260" />
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Klasör ağacı -->
-                        <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" Text="Klasörler (büyükten küçüğe)" Style="{StaticResource SectionTitle}" />
-                            <TreeView x:Name="SpaceTree" SelectedItemChanged="OnTreeSelectionChanged"
-                                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                                      MouseDoubleClick="OnTreeDoubleClick" ContextMenu="{StaticResource ItemMenu}">
-                                <TreeView.ItemContainerStyle>
-                                    <Style TargetType="TreeViewItem">
-                                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-                                        <Setter Property="Padding" Value="0,2" />
-                                    </Style>
-                                </TreeView.ItemContainerStyle>
-                                <TreeView.ItemTemplate>
-                                    <HierarchicalDataTemplate DataType="{x:Type local:FolderNode}" ItemsSource="{Binding Children}">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="104" />
-                                                <ColumnDefinition Width="80" />
-                                                <ColumnDefinition Width="56" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding Icon}" Margin="0,0,6,0" />
-                                            <!-- Yüzde çubuğu -->
-                                            <Border Grid.Column="1" Width="96" Height="12" Background="#E5E7EB" CornerRadius="2" HorizontalAlignment="Left">
-                                                <Border HorizontalAlignment="Left" CornerRadius="2" Background="{StaticResource AccentBrush}"
-                                                        Width="{Binding Percent, Converter={StaticResource PercentToWidth}, ConverterParameter=96}" />
-                                            </Border>
-                                            <TextBlock Grid.Column="2" Text="{Binding SizeText}" Style="{StaticResource RightCell}" Margin="0,0,8,0" FontWeight="SemiBold" />
-                                            <TextBlock Grid.Column="3" Text="{Binding PercentText}" Style="{StaticResource RightCell}" Margin="0,0,10,0" Foreground="{StaticResource MutedBrush}" />
-                                            <TextBlock Grid.Column="4">
-                                                <Run Text="{Binding Name, Mode=OneWay}" />
-                                                <Run Text="{Binding FileCountText, Mode=OneWay}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
-                                            </TextBlock>
-                                        </Grid>
-                                    </HierarchicalDataTemplate>
-                                </TreeView.ItemTemplate>
-                            </TreeView>
-                        </DockPanel>
-
-                        <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="Transparent" />
-
-                        <!-- Sağ panel -->
-                        <DockPanel Grid.Column="2">
-                            <TextBlock DockPanel.Dock="Top" x:Name="SelectionTitle" Style="{StaticResource SectionTitle}" TextTrimming="CharacterEllipsis" />
-                            <TabControl>
-                                <TabItem Header="Kategoriler">
-                                    <ListView x:Name="CategoryList">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Kategori" Width="150" DisplayMemberBinding="{Binding Key}" />
-                                                <GridViewColumn Header="Boyut" Width="90">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource RightCell}" />
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Header="Pay" Width="130">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <Border Width="{Binding Percent, Converter={StaticResource PercentToWidth}, ConverterParameter=70}"
-                                                                        Height="10" Background="{StaticResource AccentBrush}" CornerRadius="2" Margin="0,0,6,0" />
-                                                                <TextBlock Text="{Binding PercentText}" Foreground="{StaticResource MutedBrush}" />
-                                                            </StackPanel>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Header="Dosya" Width="80" DisplayMemberBinding="{Binding CountText}" />
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </TabItem>
-                                <TabItem Header="Dosya türleri">
-                                    <ListView x:Name="TypeList" VirtualizingPanel.IsVirtualizing="True" MouseDoubleClick="OnTypeDoubleClick"
-                                              ToolTip="Çift tıklayarak bu türdeki dosyaları ara">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Uzantı" Width="100" DisplayMemberBinding="{Binding Key}" />
-                                                <GridViewColumn Header="Kategori" Width="110" DisplayMemberBinding="{Binding Category}" />
-                                                <GridViewColumn Header="Boyut" Width="90">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource RightCell}" />
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Header="Pay" Width="70" DisplayMemberBinding="{Binding PercentText}" />
-                                                <GridViewColumn Header="Dosya" Width="80" DisplayMemberBinding="{Binding CountText}" />
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </TabItem>
-                                <TabItem Header="En büyük dosyalar">
-                                    <ListView x:Name="LargestList" VirtualizingPanel.IsVirtualizing="True"
-                                              MouseDoubleClick="OnResultDoubleClick" KeyDown="OnResultKeyDown"
-                                              ContextMenu="{StaticResource ItemMenu}" SelectionMode="Extended">
-                                        <ListView.View>
-                                            <GridView>
-                                                <GridViewColumn Header="Ad" Width="220" DisplayMemberBinding="{Binding Name}" />
-                                                <GridViewColumn Header="Boyut" Width="90">
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource RightCell}" FontWeight="SemiBold" />
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Header="Konum" Width="320" DisplayMemberBinding="{Binding Folder}" />
-                                            </GridView>
-                                        </ListView.View>
-                                    </ListView>
-                                </TabItem>
-                            </TabControl>
-                        </DockPanel>
-                    </Grid>
-                </DockPanel>
+            <TabItem Header="Alan Analizi" Tag="&#xEB05;" HeaderTemplate="{StaticResource TabHeader}" x:Name="SpaceTab">
+                <views:SpaceView x:Name="SpaceView" />
+            </TabItem>
+            <TabItem Header="Kopyalar" Tag="&#xE8C8;" HeaderTemplate="{StaticResource TabHeader}" x:Name="DuplicatesTab">
+                <views:DuplicatesView x:Name="DuplicatesView" />
+            </TabItem>
+            <TabItem Header="Temizlik" Tag="&#xEA99;" HeaderTemplate="{StaticResource TabHeader}" x:Name="CleanupTab">
+                <views:CleanupView x:Name="CleanupView" />
+            </TabItem>
+            <TabItem Header="Ayarlar" Tag="&#xE713;" HeaderTemplate="{StaticResource TabHeader}" x:Name="SettingsTab">
+                <views:SettingsView x:Name="SettingsView" />
             </TabItem>
         </TabControl>
     </DockPanel>

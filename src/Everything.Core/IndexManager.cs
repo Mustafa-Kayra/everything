@@ -4,12 +4,18 @@ namespace Everything.Core;
 public sealed class IndexManager : IDisposable
 {
     private readonly List<VolumeIndexer> _volumes = new();
-    private readonly string? _cacheDirectory;
+    private readonly Func<string, VolumeIndexerOptions> _optionsFactory;
     private Timer? _saveTimer;
 
     public IndexManager(string? cacheDirectory)
+        : this(_ => new VolumeIndexerOptions { CacheDirectory = cacheDirectory })
     {
-        _cacheDirectory = cacheDirectory;
+    }
+
+    /// <summary>Her kök için ayrı seçenekler (ör. yalnızca NTFS birimlerde hızlı tarama).</summary>
+    public IndexManager(Func<string, VolumeIndexerOptions> optionsFactory)
+    {
+        _optionsFactory = optionsFactory;
     }
 
     public IReadOnlyList<VolumeIndexer> Volumes => _volumes;
@@ -29,7 +35,7 @@ public sealed class IndexManager : IDisposable
     {
         foreach (var root in roots)
         {
-            var volume = new VolumeIndexer(root, _cacheDirectory);
+            var volume = new VolumeIndexer(root, _optionsFactory(root));
             volume.StateChanged += (_, _) => StateChanged?.Invoke(this, EventArgs.Empty);
             volume.IndexChanged += (_, _) => IndexChanged?.Invoke(this, EventArgs.Empty);
             _volumes.Add(volume);

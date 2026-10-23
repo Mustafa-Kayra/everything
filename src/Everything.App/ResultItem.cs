@@ -1,3 +1,5 @@
+using System.Windows.Media;
+using Everything.App.Services;
 using Everything.Core;
 
 namespace Everything.App;
@@ -6,6 +8,8 @@ namespace Everything.App;
 public sealed class ResultItem
 {
     private string? _folder;
+    private ImageSource? _icon;
+    private bool _iconLoaded;
 
     public ResultItem(FileIndex index, int id)
     {
@@ -25,7 +29,19 @@ public sealed class ResultItem
     public long Size { get; }
     public DateTime? Modified { get; }
 
-    public string Icon => IsDirectory ? "📁" : "📄";
+    /// <summary>Windows'un dosya türü ikonu (ekranda görününce yüklenir).</summary>
+    public ImageSource? Icon
+    {
+        get
+        {
+            if (!_iconLoaded)
+            {
+                _iconLoaded = true;
+                _icon = FileIcons.Get(FullPath, IsDirectory);
+            }
+            return _icon;
+        }
+    }
 
     public string SizeText => ByteSize.Format(Size);
 
